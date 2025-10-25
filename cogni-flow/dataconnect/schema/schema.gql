@@ -1,0 +1,50 @@
+type User @table {
+  displayName: String!
+  createdAt: Timestamp!
+  userRole: String!
+  email: String
+  photoUrl: String
+  dyslexiaSettings: String
+}
+
+type Content @table {
+  title: String!
+  contentType: String!
+  createdAt: Timestamp!
+  description: String
+  url: String
+  textBody: String
+  difficultyLevel: String
+}
+
+type UserUpload @table {
+  user: User!
+  fileName: String!
+  fileUrl: String!
+  fileType: String!
+  createdAt: Timestamp!
+  processedContentUrl: String
+  notes: String
+}
+
+type Note @table {
+  user: User!
+  content: Content
+  userUpload: UserUpload
+  title: String!
+  text: String!
+  createdAt: Timestamp!
+  updatedAt: Timestamp!
+  tags: [String]
+}
+
+type Assignment @table {
+  student: User!
+  educator: User!
+  content: Content
+  title: String!
+  dueDate: Timestamp!
+  createdAt: Timestamp!
+  description: String
+  status: String
+}

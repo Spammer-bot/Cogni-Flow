@@ -1,0 +1,146 @@
+const generateContentFromGemini = async (prompt) => {
+  const payload = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.7, topK: 40, topP: 0.95, maxOutputTokens: 8192 },
+  };
+
+  for (let i = 0; i < API_ENDPOINTS.length; i++) {
+    try {
+      const response = await fetch(API_ENDPOINTS[i], {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const jsonResponse = await response.json();
+
+      if (!response.ok) {
+        if (i < API_ENDPOINTS.length - 1) continue;
+        throw new Error(jsonResponse.error?.message || "Unknown API error");
+      }
+
+      // ✅ Proper optional chaining
+      const generatedText =
+        jsonResponse?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (generatedText) return cleanHtmlResponse(generatedText);
+
+      if (i < API_ENDPOINTS.length - 1) continue;
+      throw new Error("Invalid API response.");
+    } catch (error) {
+      if (i === API_ENDPOINTS.length - 1) throw error;
+    }
+  }
+  return "";
+};
+
+
+
+
+const cleanHtmlResponse = (response) => {
+  if (!response) return "";
+  let cleanedResponse = response;
+
+  // Remove HTML code block markers
+  cleanedResponse = cleanedResponse.replace(/```html/g, "");
+  cleanedResponse = cleanedResponse.replace(/```/g, "");
+
+  // Remove quotes at start and end
+  while (
+    cleanedResponse.startsWith('"') ||
+    cleanedResponse.startsWith("'") ||
+    cleanedResponse.startsWith("`")
+  ) {
+    cleanedResponse = cleanedResponse.substring(1);
+  }
+  while (
+    cleanedResponse.endsWith('"') ||
+    cleanedResponse.endsWith("'") ||
+    cleanedResponse.endsWith("`")
+  ) {
+    cleanedResponse = cleanedResponse.substring(0, cleanedResponse.length - 1);
+  }
+
+  // Trim whitespace
+  cleanedResponse = cleanedResponse.trim();
+
+  // If still starts with backticks, remove first line
+  if (cleanedResponse.indexOf("```") !== -1) {
+    const lines = cleanedResponse.split("\n");
+    lines.shift(); // Remove first line
+    cleanedResponse = lines.join("\n");
+  }
+
+  return cleanedResponse;
+};
+
+
+
+const generateFlashcards = async (inputText) => {
+  const prompt = `Create 8 flashcards from this content. Return ONLY clean HTML, no markdown fences, no emojis.
+Use this exact structure per card:
+<div class="flashcard">
+  <div class="card-inner">
+    <div class="card-face card-front"><p>QUESTION</p></div>
+    <div class="card-face card-back"><p>ANSWER</p></div>
+  </div>
+</div>
+Wrap all cards inside:
+<div class="flashcard-deck"> ...cards... </div>
+
+Content: ${inputText}`;
+  
+  const htmlContent = await generateContentFromGemini(prompt);
+  setFlashcardContent(htmlContent);
+};
+
+// ✅ Event handlers
+const handleFileChange = (e) => {
+  const file = e.target.files?.[0] || null;
+  setFileInput(file);
+};
+
+const handleGenerate = async () => {
+  setIsGenerating(true);
+  setGenStatus("Preparing your content...");
+  let processedText = textInput.trim();
+
+  try {
+    if (!processedText && urlInput && !fileInput) {
+      setGenStatus("Fetching content from URL...");
+      processedText = await fetchUrlContent(urlInput);
+      setGenStatus("URL content loaded!");
+    }
+
+    if (!processedText && fileInput) {
+      setGenStatus("Reading file...");
+      processedText = await fileInput.text();
+    }
+
+    if (!processedText) {
+      throw new Error("Please provide text, a URL, or a file.");
+    }
+
+    setGenStatus("Creating Smart Notes...");
+    await generateSmartNotes(processedText);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    setGenStatus("Building Mind Map...");
+    await generateMindMap(processedText);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    setGenStatus("Crafting Quiz...");
+    await generateQuiz(processedText);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    setGenStatus("Designing Flashcards...");
+    await generateFlashcards(processedText);
+
+    setGenStatus("✅ All materials generated! Check the tabs above.");
+    setActiveTab("notes");
+  } catch (error) {
+    showErrorDialog("Generation failed", error);
+    setGenStatus("Error occurred.");
+  } finally {
+    setIsGenerating(false);
+  }
+};
